@@ -1,0 +1,9 @@
+../Core/Src/states_handling.c:32:13:AGV_TransitionTo	4
+../Core/Src/states_handling.c:44:13:AGV_HandleCommand	6
+../Core/Src/states_handling.c:71:13:State_FollowLine	2
+../Core/Src/states_handling.c:82:13:State_LostLine	3
+../Core/Src/states_handling.c:97:13:State_Rotate	2
+../Core/Src/states_handling.c:107:13:State_ReacquireLine	3
+../Core/Src/states_handling.c:124:6:AGV_Init	1
+../Core/Src/states_handling.c:143:6:AGV_Update	7
+../Core/Src/states_handling.c:183:6:AGV_OnRFIDEvent	1

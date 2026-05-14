@@ -1,0 +1,4 @@
+../Core/Src/line_sensor_weight.c:29:6:LineSensor_Init	24	static
+../Core/Src/line_sensor_weight.c:40:6:LineSensor_Read	24	static
+../Core/Src/line_sensor_weight.c:48:6:LineSensor_Compute	24	static
+../Core/Src/line_sensor_weight.c:72:6:LineSensor_Update	16	static

@@ -1,0 +1,5 @@
+../Core/Src/ESP32_comm.c:4:6:ESP32_Init	16	static
+../Core/Src/ESP32_comm.c:13:13:push	24	static
+../Core/Src/ESP32_comm.c:26:6:ESP32_GetCommand	16	static
+../Core/Src/ESP32_comm.c:36:6:ESP32_HasCommand	16	static
+../Core/Src/ESP32_comm.c:42:6:ESP32_ReceiveByte	24	static
