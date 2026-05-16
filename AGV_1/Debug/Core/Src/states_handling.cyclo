@@ -1,5 +1,5 @@
 ../Core/Src/states_handling.c:32:13:AGV_TransitionTo	4
-../Core/Src/states_handling.c:44:13:AGV_HandleCommand	6
+../Core/Src/states_handling.c:44:13:AGV_HandleCommand	4
 ../Core/Src/states_handling.c:71:13:State_FollowLine	2
 ../Core/Src/states_handling.c:82:13:State_LostLine	3
 ../Core/Src/states_handling.c:97:13:State_Rotate	2
