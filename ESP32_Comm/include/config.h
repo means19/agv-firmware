@@ -1,18 +1,18 @@
 #pragma once
 
 // ── WiFi ──────────────────────────────────────────────────────────
-#define WIFI_SSID     "NORMIES"
-#define WIFI_PASSWORD "0378580982"
+#define WIFI_SSID     "ngoc"
+#define WIFI_PASSWORD "N0983324132"
 
 // ── MQTT broker ───────────────────────────────────────────────────
-#define MQTT_SERVER   "10.17.227.227"
+#define MQTT_SERVER   "192.168.1.8"
 #define MQTT_PORT     1884
 
 // ── AGV identity ──────────────────────────────────────────────────
 #define AGV_CLIENT_ID    "esp32_agv_1"
 #define AGV_SERIAL       "0001"
 #define AGV_MANUFACTURER "DATN"
-#define AGV_MAP_ID       "floor_1"
+#define AGV_MAP_ID       "map_1"
 #define VDA_VERSION      "2.1.0"
 
 // ── MQTT topics ───────────────────────────────────────────────────

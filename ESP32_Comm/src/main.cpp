@@ -21,6 +21,11 @@ OrderManager   orderMgr;
 RfidManager    rfid;    // always compiled — but loop() does nothing until
                         // readHardware() is filled in and USE_REAL_RFID = 1
 
+namespace {
+bool lastLostHigh     = false;
+bool lastObstacleHigh = false;
+}
+
 // ── Thin wrapper: state_manager calls this to publish without
 //    needing to know about network_manager ─────────────────────────
 bool publishState(const String& json) {
@@ -33,6 +38,9 @@ void setup() {
     Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);
     delay(500);
     Serial.println("[MAIN] AGV gateway starting...");
+
+    pinMode(AGV_LOST_PIN, INPUT_PULLDOWN);
+    pinMode(AGV_OBJ_DETECT_PIN, INPUT_PULLDOWN);
 
     stateMgr.begin();
     orderMgr.begin(&stateMgr.state);
@@ -56,15 +64,19 @@ void loop() {
     // 1. Keep WiFi + MQTT alive
     network.loop();
 
-    if (digitalRead(AGV_LOST_PIN) == HIGH) {
-    if (stateMgr.state.errorCount < MAX_ERRORS) {
-        stateMgr.state.errors[stateMgr.state.errorCount++] = {
-            "AGV_LOST", "AGV lost line/position", "FATAL"
-        };
+    bool lostHigh     = (digitalRead(AGV_LOST_PIN) == HIGH);
+    bool obstacleHigh = (digitalRead(AGV_OBJ_DETECT_PIN) == HIGH);
+
+    if (lostHigh && !lastLostHigh) {
+        if (stateMgr.state.errorCount < MAX_ERRORS) {
+            stateMgr.state.errors[stateMgr.state.errorCount++] = {
+                "AGV_LOST", "AGV lost line/position", "FATAL"
+            };
+        }
+        stateMgr.publishNow(publishState);
     }
-    stateMgr.publishNow(publishState);
-    }
-    if (digitalRead(AGV_OBJ_DETECT_PIN) == HIGH) {
+
+    if (obstacleHigh && !lastObstacleHigh) {
         if (stateMgr.state.errorCount < MAX_ERRORS) {
             stateMgr.state.errors[stateMgr.state.errorCount++] = {
                 "OBSTACLE", "Object detected", "WARNING"
@@ -72,6 +84,9 @@ void loop() {
         }
         stateMgr.publishNow(publishState);
 }
+
+    lastLostHigh     = lostHigh;
+    lastObstacleHigh = obstacleHigh;
 
     // 2. Route incoming MQTT messages
     if (network.incoming.hasNew) {
