@@ -1,5 +1,0 @@
-../Core/Src/ESP32_comm.c:4:6:ESP32_Init	1
-../Core/Src/ESP32_comm.c:13:13:push	2
-../Core/Src/ESP32_comm.c:26:6:ESP32_GetCommand	2
-../Core/Src/ESP32_comm.c:36:6:ESP32_HasCommand	1
-../Core/Src/ESP32_comm.c:42:6:ESP32_ReceiveByte	8

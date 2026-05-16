@@ -1,3 +1,0 @@
-../Core/Src/controllers.c:17:6:PID_Init	1
-../Core/Src/controllers.c:30:6:PID_Reset	1
-../Core/Src/controllers.c:36:7:PID_Compute	3
