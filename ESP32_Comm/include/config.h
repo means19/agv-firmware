@@ -32,4 +32,4 @@
 // 1 = real hardware — tags come from the MFRC522 reader
 //
 // Keep this 0 until you have filled in readHardware() in RFID_reader.cpp
-#define USE_REAL_RFID 0
+#define USE_REAL_RFID 1
