@@ -30,11 +30,12 @@
 
 /* ===== Commands ===== */
 typedef enum {
-    CMD_FORWARD = 0x00,
-    CMD_LEFT    = 0x01,
-    CMD_RIGHT   = 0x02,
-    CMD_STOP    = 0x03,
-    CMD_ROTATE  = 0x04
+	CMD_FORWARD = 0x00,
+	CMD_ROTATE = 0x01,
+
+	CMD_LEFT = 0x02,
+	CMD_RIGHT = 0x03,
+	CMD_STOP = 0x04
 } AGV_Command;
 
 /* ===== Config ===== */

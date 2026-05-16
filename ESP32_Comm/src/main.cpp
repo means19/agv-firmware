@@ -47,7 +47,7 @@ void setup() {
     network.begin();
 
 #if USE_REAL_RFID == 1
-    rfid.begin();
+    rfid.init();
     Serial.println("[MAIN] RFID: real hardware");
 #else
     Serial.println("[MAIN] RFID: simulation — tags via test/rfid MQTT topic");
@@ -114,12 +114,12 @@ void loop() {
 
 #if USE_REAL_RFID == 1
     // 3. Poll real RFID hardware
-    rfid.loop();
-    if (rfid.hasNew) {
-        String tag  = rfid.lastTag;
-        rfid.hasNew = false;
+    String tag = rfid.readHardware();
+    
+    if (tag != "") {
+        Serial.printf("[MAIN] Real RFID tag scanned/mapped: %s\n", tag.c_str());
         orderMgr.onTagRead(tag);
-        stateMgr.publishNow(publishState);
+        stateMgr.publishNow(publishState); // Push state to server
     }
 #endif
 
