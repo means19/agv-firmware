@@ -1,0 +1,5 @@
+paho-mqtt>=1.6.1
+pyserial>=3.5
+
+# Optional: install via
+# python -m pip install -r requirements.txt

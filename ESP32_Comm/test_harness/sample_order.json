@@ -1,0 +1,32 @@
+{
+  "orderId": "test-order-001",
+  "orderUpdateId": 1,
+  "nodes": [
+    {
+      "nodeId": "node_start",
+      "sequenceId": 0,
+      "x": 0.0,
+      "y": 0.0,
+      "released": true,
+      "actions": []
+    },
+    {
+      "nodeId": "node_end",
+      "sequenceId": 2,
+      "x": 1.0,
+      "y": 0.0,
+      "released": true,
+      "actions": []
+    }
+  ],
+  "edges": [
+    {
+      "edgeId": "edge_1",
+      "sequenceId": 1,
+      "startNodeId": "node_start",
+      "endNodeId": "node_end",
+      "maxSpeed": 1.0,
+      "released": true
+    }
+  ]
+}

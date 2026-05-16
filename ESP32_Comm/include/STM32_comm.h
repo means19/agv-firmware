@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 // ──────────────────────────────────────────
 //  add the STM32 communication protocol functions here, so main.cpp can call them without
 //__________________________________________
