@@ -7,18 +7,21 @@
  * 1. No HAL_Delay() anywhere. Timing uses HAL_GetTick() deltas.
  *
  * 2. State entry actions are performed once via state_entry_tick
- *    being updated in AGV_TransitionTo(). This avoids repeating
- *    one-shot actions (like PID_Reset) every loop iteration.
+ * being updated in AGV_TransitionTo(). This avoids repeating
+ * one-shot actions (like PID_Reset) every loop iteration.
  *
  * 3. PID is ONLY computed in AGV_STATE_FOLLOW_LINE. All other
- *    states use fixed motor commands.
+ * states use fixed motor commands.
  *
  * 4. Rotation is always in ONE direction (right). CMD_ROTATE
- *    unconditionally calls Motor_RotateRight().
+ * unconditionally calls Motor_RotateRight().
  *
  * 5. REACQUIRE_LINE uses a position threshold, not a timer.
- *    The robot creeps forward-right until the weighted sensor
- *    position is within AGV_REACQUIRE_THRESHOLD of centre (0.0).
+ * The robot creeps forward-right until the weighted sensor
+ * position is within AGV_REACQUIRE_THRESHOLD of centre (0.0).
+ *
+ * 6. UPDATED: ESP32 handles RFID. STM32 transitions state IMMEDIATELY
+ * upon receiving a valid UART command from ESP32.
  */
 
 #include "states_handling.h"
@@ -135,7 +138,6 @@ void AGV_Init(AGV_System *agv)
 
     agv->state = AGV_STATE_IDLE;
     agv->current_cmd = CMD_STOP;
-    agv->cmd_ready = 0;
 
     Motor_Stop();
 }
@@ -144,14 +146,12 @@ void AGV_Update(AGV_System *agv)
 {
     LineSensor_Update(&agv->line_sensor);
 
-    /* 🔥 EVENT-DRIVEN COMMAND */
-    if (agv->cmd_ready)
-    {
-        AGV_Command cmd;
-        if (ESP32_GetCommand(&agv->comm, &cmd)) {
-            AGV_HandleCommand(agv, cmd);
-        }
-        agv->cmd_ready = 0;
+    /* 🔥 EVENT-DRIVEN COMMAND DIRECTLY FROM ESP32 UART */
+    AGV_Command cmd;
+    // ESP32_GetCommand() checks if a new command is available from the ESP32 via UART.
+    // returns true if a new command is available and assigns it to the cmd variable.
+    if (ESP32_GetCommand(&agv->comm, &cmd)) {
+        AGV_HandleCommand(agv, cmd);
     }
 
     switch (agv->state)
@@ -177,10 +177,4 @@ void AGV_Update(AGV_System *agv)
         default:
             break;
     }
-}
-
-/* ===== RFID TRIGGER ===== */
-void AGV_OnRFIDEvent(AGV_System *agv)
-{
-    agv->cmd_ready = 1;
 }
