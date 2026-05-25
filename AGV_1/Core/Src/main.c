@@ -21,13 +21,14 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "states_handling.h"
-#include "ESP32_comm.h"
-#include "motor_control.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "Hcsr04.h"
+#include "motor_control.h"
+#include "states_handling.h"
+#include "ESP32_Comm.h"
+#include "Hcsr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,6 +49,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+#define OBJECT_ERROR_DETECTED_RANGE 15.00
+
 AGV_System agv;      /* Full AGV state machine                   */
 uint8_t    rx_byte;  /* 1-byte buffer for UART interrupt         */
 /* USER CODE END PV */
@@ -94,6 +97,7 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
     Motor_Init();       /* Start TIM3 PWM channels, stop motors  */
     AGV_Init(&agv);     /* Init FSM, PID, sensors, UART parser   */
@@ -106,8 +110,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+    while (Object_detected() == 1) {
+      Motor_Stop(); /* Stop the AGV if an object is detected within the error range */
+      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_SET); /* Turn on error LED */
+      HAL_Delay(10000); /* Wait for 10 second before checking again */
+    }
+
+
+    // If no Errors occur
+    AGV_Update(&agv);   /* Sensors → FSM → motors, no blocking */ 
+
     /* USER CODE END WHILE */
-    AGV_Update(&agv);   /* Sensors → FSM → motors, no blocking */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

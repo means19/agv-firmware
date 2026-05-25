@@ -39,7 +39,7 @@ static void setPWM_Right(float speed)
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, pwm);
 }
 
-/* ===== Direction ===== */
+/* ===== Direction ===== */ 
 static void Left_Forward(void)
 {
     HAL_GPIO_WritePin(L_IN1_PORT, L_IN1_PIN, GPIO_PIN_SET);

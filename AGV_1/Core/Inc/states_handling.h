@@ -27,6 +27,7 @@ typedef enum {
     AGV_STATE_LOST_LINE
 } AGV_State;
 
+
 /* ===== SYSTEM ===== */
 typedef struct {
     AGV_State state;
@@ -37,10 +38,13 @@ typedef struct {
     PID_parameters pid;
 
     uint32_t state_entry_tick;
+    volatile uint8_t cmd_ready;
+
 } AGV_System;
 
 /* ===== API ===== */
 void AGV_Init(AGV_System *agv);
 void AGV_Update(AGV_System *agv);
+void AGV_OnRFIDEvent(AGV_System *agv);
 
 #endif
