@@ -147,11 +147,11 @@ void AGV_Update(AGV_System *agv)
     LineSensor_Update(&agv->line_sensor);
 
     /* 🔥 EVENT-DRIVEN COMMAND DIRECTLY FROM ESP32 UART */
-    AGV_Command cmd;
+        AGV_Command cmd;
     // ESP32_GetCommand() checks if a new command is available from the ESP32 via UART.
     // returns true if a new command is available and assigns it to the cmd variable.
-    if (ESP32_GetCommand(&agv->comm, &cmd)) {
-        AGV_HandleCommand(agv, cmd);
+        if (ESP32_GetCommand(&agv->comm, &cmd)) {
+            AGV_HandleCommand(agv, cmd);
     }
 
     switch (agv->state)
@@ -177,4 +177,10 @@ void AGV_Update(AGV_System *agv)
         default:
             break;
     }
+}
+
+/* ===== RFID TRIGGER ===== */
+void AGV_OnRFIDEvent(AGV_System *agv)
+{
+    agv->cmd_ready = 1;
 }
