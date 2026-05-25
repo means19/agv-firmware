@@ -1,28 +1,15 @@
 /**
  * @file    hcsr04.h
- * @brief   HC-SR04 Ultrasonic Sensor Driver
- *          STM32F103C8T6 (Blue Pill), STM32 HAL, TIM2
+ * @brief   HC-SR04 Ultrasonic Sensor Driver (non-blocking)
+ *          STM32F103C8T6 (Blue Pill), STM32 HAL, TIM2 + EXTI
  *
- * How it works:
- *   1. Pull TRIG HIGH for 10 us to start a measurement
- *   2. Sensor sends 8 ultrasonic pulses at 40 kHz
- *   3. ECHO pin goes HIGH while waiting for the reflection
- *   4. Measure how long ECHO stays HIGH (in microseconds)
- *   5. Distance (cm) = echo_time_us x 0.01715
- *      (speed of sound 343 m/s at 20 C, divided by 2 for round-trip)
- *
- * Pins used
- *   TRIG --> PB1  (GPIO Output)
- *   ECHO --> PB11 (GPIO Input)
- *
- * Timer used:
- *   TIM2 -- free-running 1 MHz counter (1 tick = 1 us)
- *
- * CubeMX settings for TIM2:
- *   Clock Source : Internal Clock
- *   Prescaler    : 32 - 1      (32 MHz / 32 = 1 MHz)
- *   Counter Mode : Up
- *   Period       : 65535 - 1
+ * Usage overview:
+ * - Configure ECHO pin as EXTI on both edges.
+ * - Configure a timer to 1 MHz (1 tick = 1 us).
+ * - Call HCSR04_Init() once.
+ * - Periodically call HCSR04_Trigger() (>= 60 ms).
+ * - Call HCSR04_Update() each loop for timeout handling.
+ * - Call HCSR04_EXTI_Handler() from HAL_GPIO_EXTI_Callback().
  */
 
 #ifndef HCSR04_H
@@ -37,22 +24,72 @@
 #define ECHO_PORT   GPIOB
 #define ECHO_PIN    GPIO_PIN_11
 
-/* ---------- Timeout, ERROR RANGE ---------- */
-/* HC-SR04 max range ~4 m = ~23 200 us echo time. 25 000 us is safe. */
-#define HCSR04_TIMEOUT_US   25000UL
-#define ERROR_ALLOWED_RANGE 15
-/* ---------- API ---------- */
+/* ---------- Timing and thresholds ---------- */
+#define HCSR04_TIMEOUT_MS       30U
+#define HCSR04_NO_ECHO_CM        999.0f
+#define HCSR04_SOUND_CM_PER_US   0.01715f
+#define ERROR_ALLOWED_RANGE      15.0f
 
+/* ---------- Driver state ---------- */
+typedef enum
+{
+	HCSR04_STATE_IDLE = 0,
+	HCSR04_STATE_WAIT_RISE,
+	HCSR04_STATE_WAIT_FALL
+} HCSR04_State;
+
+typedef struct
+{
+	volatile HCSR04_State state;   /* Shared state between ISR and main */
+	volatile uint16_t rise_us;     /* Timer capture at rising edge (us) */
+	volatile uint32_t trigger_ms;  /* Timestamp when trigger was sent */
+	volatile uint32_t rise_ms;     /* Timestamp when rising edge occurred */
+	volatile float distance_cm;    /* Latest computed distance */
+	volatile uint8_t new_data;     /* 1 when distance_cm is updated */
+} HCSR04_Context;
+
+extern volatile HCSR04_Context g_hcsr04;
+
+/* ---------- API ---------- */
 /**
- * @brief  Call once in main() after MX_TIM2_Init() and MX_GPIO_Init().
- * @param  htim  Pointer to htim2 
+ * @brief  Initialize driver. Call once after MX_TIM2_Init() and MX_GPIO_Init().
+ * @param  htim  Pointer to timer configured for 1 MHz (1 tick = 1 us).
+ */
 void HCSR04_Init(TIM_HandleTypeDef *htim);
 
-
- * @brief  Measure distance. Blocks for up to ~25 ms.
- * @return Distance in centimetres, or -1.0f on timeout (no obstacle).
- * @note   Do not call faster than every 60 ms.
+/**
+ * @brief  Send a 10 us trigger pulse and arm the state machine.
+ * @note   Call no faster than every 60 ms.
  */
-float HCSR04_Read_cm(void);
-int Object_detected (void);
+void HCSR04_Trigger(void);
+
+/**
+ * @brief  Handle timeout when no echo is received.
+ * @note   Call this in the main loop (non-blocking).
+ */
+void HCSR04_Update(void);
+
+/**
+ * @brief  EXTI handler for ECHO pin. Call from HAL_GPIO_EXTI_Callback().
+ * @param  GPIO_Pin  Pin passed by HAL.
+ */
+void HCSR04_EXTI_Handler(uint16_t GPIO_Pin);
+
+/**
+ * @brief  Get new distance if available (clears new_data flag).
+ * @param  out_cm  Pointer to store distance in cm.
+ * @return 1 if new data was returned, 0 otherwise.
+ */
+uint8_t HCSR04_TryGetDistanceCm(float *out_cm);
+
+/**
+ * @brief  Get the latest measured distance (may be stale).
+ */
+float HCSR04_GetLastDistanceCm(void);
+
+/**
+ * @brief  Convenience helper for obstacle detection threshold.
+ * @return 1 if distance is valid and within ERROR_ALLOWED_RANGE.
+ */
+int Object_detected(void);
 #endif /* HCSR04_H */

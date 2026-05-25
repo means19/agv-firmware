@@ -28,7 +28,6 @@
 #include "motor_control.h"
 #include "states_handling.h"
 #include "ESP32_Comm.h"
-#include "Hcsr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +100,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
     Motor_Init();       /* Start TIM3 PWM channels, stop motors  */
     AGV_Init(&agv);     /* Init FSM, PID, sensors, UART parser   */
+    HCSR04_Init(&htim2); /* Init HC-SR04 driver (non-blocking)    */
  
     /* Arm UART interrupt — receive 1 byte at a time */
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
@@ -110,16 +110,44 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    static uint32_t last_hcsr04_ms = 0U;
+    uint32_t now_ms = HAL_GetTick();
 
-    while (Object_detected() == 1) {
-      Motor_Stop(); /* Stop the AGV if an object is detected within the error range */
-      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_SET); /* Turn on error LED */
-      HAL_Delay(10000); /* Wait for 10 second before checking again */
+    // 1. Trigger HC-SR04 every 100 ms (non-blocking)
+    if ((uint32_t)(now_ms - last_hcsr04_ms) >= 100U)
+    {
+      HCSR04_Trigger();
+      last_hcsr04_ms = now_ms;
     }
 
+    // 2. Update timeout of sensor
+    HCSR04_Update();
 
-    // If no Errors occur
-    AGV_Update(&agv);   /* Sensors → FSM → motors, no blocking */ 
+    // 3. Check for object detection and handle emergency stop
+    if (Object_detected())
+    {
+      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_SET);
+
+      // If an object is detected and not already stopped, transition to STOP state
+      if (agv.state != AGV_STATE_STOP)
+      {
+        agv.state = AGV_STATE_STOP;
+        Motor_Stop();
+        // TODO: Send 1 UART message to ESP32 to notify about the obstacle
+      }
+    }
+    else
+    {
+      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_RESET);
+
+      if (agv.state == AGV_STATE_STOP && agv.current_cmd == CMD_FORWARD)
+      {
+        agv.state = AGV_STATE_FOLLOW_LINE;
+      }
+    }
+
+    // 4. Update AGV state machine (non-blocking)
+    AGV_Update(&agv); 
 
     /* USER CODE END WHILE */
 
@@ -186,6 +214,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
  * ============================================================ */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+  HCSR04_EXTI_Handler(GPIO_Pin);
     if (GPIO_Pin == GPIO_PIN_5)   /* <-- match your RFID EXTI pin in CubeMX */
     {
         AGV_OnRFIDEvent(&agv);

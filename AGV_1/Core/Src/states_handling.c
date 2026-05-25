@@ -179,8 +179,3 @@ void AGV_Update(AGV_System *agv)
     }
 }
 
-/* ===== RFID TRIGGER ===== */
-void AGV_OnRFIDEvent(AGV_System *agv)
-{
-    agv->cmd_ready = 1;
-}
