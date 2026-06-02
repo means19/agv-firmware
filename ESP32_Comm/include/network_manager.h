@@ -50,5 +50,5 @@ private:
     WiFiClient   wifiClient;
     PubSubClient mqttClient;
 
-    unsigned long lastReconnectTime;
+    unsigned long lastReconnectTime = 0;
 };

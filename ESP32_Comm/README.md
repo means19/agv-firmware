@@ -7,18 +7,18 @@ This firmware runs on an ESP32 and is responsible for the communication, coordin
 - UART bridge and protocol handling with the main MCU (STM32)
 - Local order processing and coordination logic (lightweight order manager)
 
-Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. Third-party libraries are included under `libdeps/`.
+Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. The application currently follows the Arduino `setup()` / `loop()` model, with networking callbacks and polling used for coordination. Third-party libraries are included under `libdeps/`.
 
 ## 2. Hardware Interfaces
 ### 2.1 MCU and RTOS
-- MCU: ESP32 (Xtensa) running FreeRTOS tasks (PlatformIO project configuration).
+- MCU: ESP32 (Xtensa) running the Arduino core.
 
 ### 2.2 SPI / RFID
 - MFRC522 (RC522) communicates over SPI. CS/SS, SCK, MOSI, MISO and RST pins are configured in `include/config.h`.
 
 ### 2.3 UART
 - UART to STM32 is used for command/status exchange. UART settings (baud rate, parity, stop bits) are configured in `include/config.h`.
-- The UART driver enqueues/dequeues framed messages and integrates with FreeRTOS queues to avoid blocking.
+- The UART driver transmits framed messages and keeps the protocol handling lightweight so it does not block the main loop.
 
 ### 2.4 Network
 - Wi‑Fi interface uses the ESP-IDF/WiFi library (wrappers in `src/network_manager.cpp`).
@@ -26,23 +26,23 @@ Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. T
 
 ## 3. Software Architecture
 ### 3.1 Concurrency model
-- The firmware is organized into FreeRTOS tasks and interrupt-driven handlers:
-  - `NetworkManager` task: handles Wi‑Fi connection, MQTT loop, reconnection logic
-  - `RFIDReader` task: polls/handles MFRC522 events and dispatches tag events
-  - `OrderManager` task: processes orders and coordinates local state transitions
-  - `STM32Comm` task / ISR: receives UART bytes, assembles frames, and forwards commands
+- The firmware is organized around the Arduino main loop, interrupt-driven callbacks, and synchronous helper modules:
+  - `NetworkManager`: handles Wi‑Fi connection, MQTT loop, reconnection logic
+  - `RFIDReader`: polls/handles MFRC522 events and dispatches tag events when real hardware is enabled
+  - `OrderManager`: processes orders and coordinates local state transitions
+  - `STM32Comm`: sends UART frames to the STM32
 
 ### 3.2 Message flow
-- External commands originate from MQTT (backend) or STM32 (local commands). The firmware normalizes commands into internal events processed by the `OrderManager`.
+- External commands originate from MQTT (backend) or STM32 (local commands). MQTT callback data is buffered in `NetworkManager::incoming` and consumed from `loop()`.
 - Tag events and state updates are published to MQTT in JSON format.
 
 ### 3.3 Non-blocking design
-- Drivers use interrupts and queues where possible. Long operations are split across tasks or deferred to avoid blocking critical paths.
+- Drivers use callbacks, short polling intervals, and early returns where possible. Long operations are kept out of the hot path to avoid blocking the main loop.
 
 ## 4. Timing and Real-Time Behavior
-- Wi‑Fi and MQTT operate with cooperative timing — network reconnect/backoff is handled by the `NetworkManager` task.
-- UART frame assembly is interrupt-driven with a FreeRTOS queue for completed frames.
-- RFID reads are event-driven; polling intervals and anti-collision timeouts are configurable.
+- Wi‑Fi and MQTT operate with cooperative timing — reconnect/backoff is handled inside `NetworkManager::loop()`.
+- MQTT payloads are delivered through the PubSubClient callback, then consumed by the main loop.
+- RFID reads are polling-based; timing and debounce behavior are controlled in `RfidManager::readHardware()`.
 
 ## 5. Peripherals / Sensors
 ### 5.1 RFID (MFRC522)
@@ -50,7 +50,7 @@ Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. T
 - On tag detection the firmware publishes an MQTT event and may forward an event to STM32 over UART.
 
 ### 5.2 Other inputs
-- The ESP32 firmware expects sensor-heavy control (line-following, real-time obstacle handling) to be executed on the STM32; ESP32 handles coordination and higher-level events.
+- The ESP32 firmware expects sensor-heavy control (line-following, real-time obstacle handling) to be executed on the STM32; the ESP32 handles coordination and higher-level events.
 
 ## 6. Local Decision & Coordination Logic
 - `OrderManager` implements simple state transitions for order acceptance, execution, and completion.
@@ -59,7 +59,7 @@ Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. T
 ## 7. Communication
 ### 7.1 UART protocol (ESP32 <-> STM32)
 - The UART protocol framing and commands are declared in `include/STM32_comm.h` and implemented in `src/STM32_comm.cpp`.
-- Messages use a framed byte protocol with header, payload and checksum. The parsing logic validates checksum and sequence before enqueuing commands.
+- Messages use a framed byte protocol with header, payload and checksum. The current implementation in `sendMoveCommand()` writes a 3-byte packet: `HEADER | CMD | CRC` where CRC is `HEADER XOR CMD`.
 
 ### 7.2 MQTT topics and payloads
 - Topics and base prefixes are configured in `include/config.h`.
@@ -69,7 +69,7 @@ Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. T
 - `include/config.h` — project runtime configuration (MQTT, UART, pins)
 - `include/STM32_comm.h` — UART protocol definitions
 - `include/RFID_reader.h` — RFID interface
-- `src/main.cpp` — FreeRTOS initialization and task creation
+- `src/main.cpp` — Arduino setup and main loop initialization
 - `src/network_manager.cpp` — Wi‑Fi and MQTT logic
 - `src/STM32_comm.cpp` — UART framing and handling
 - `src/RFID_reader.cpp` — MFRC522 integration
@@ -92,4 +92,3 @@ Firmware is implemented in C++ and built with PlatformIO for the ESP32 target. T
 - For UART issues: verify wiring, correct TTL levels, and matching UART settings on both devices.
 
 ---
-Document version: 1.0 — STM32-style report for ESP32_Comm
