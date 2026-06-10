@@ -5,6 +5,8 @@
 #include "order_manager.h"
 #include "state_manager.h"
 #include "RFID_reader.h"
+#include "tag_map_config.h"
+#include "agv_identity.h"
 
 
 #define RX_PIN 16
@@ -22,8 +24,18 @@ RfidManager    rfid;    // always compiled — but loop() does nothing until
                         // readHardware() is filled in and USE_REAL_RFID = 1
 
 namespace {
-bool lastLostHigh     = false;
-bool lastObstacleHigh = false;
+    // Lost line/position sensor state tracking for debouncing
+    bool stableLostState = false;
+    bool lastPhysicalLost = false;
+    unsigned long lastLostDebounceTime = 0;
+
+    // Obstacle detection sensor state tracking for debouncing
+    bool stableObstacleState = false;
+    bool lastPhysicalObstacle = false;
+    unsigned long lastObstacleDebounceTime = 0;
+
+    // Noise filtering time
+    const unsigned long DEBOUNCE_DELAY_MS = 50;
 }
 
 // ── Thin wrapper: state_manager calls this to publish without
@@ -42,6 +54,9 @@ void setup() {
     pinMode(AGV_LOST_PIN, INPUT_PULLDOWN);
     pinMode(AGV_OBJ_DETECT_PIN, INPUT_PULLDOWN);
 
+    WiFi.mode(WIFI_STA);
+    initAgvIdentity();
+
     stateMgr.begin();
     orderMgr.begin(&stateMgr.state);
     network.begin();
@@ -53,8 +68,7 @@ void setup() {
     Serial.println("[MAIN] RFID: simulation — tags via test/rfid MQTT topic");
 #endif
 
-    // Add tag mappings here if your tag UIDs differ from your nodeIds
-    // Example: orderMgr.addTagMapping("A1:B2:C3:D4", "node_loading_dock");
+    initTagMappings(orderMgr);
 
     Serial.println("[MAIN] Ready");
 }
@@ -64,41 +78,60 @@ void loop() {
     // 1. Keep WiFi + MQTT alive
     network.loop();
 
-    bool lostHigh     = (digitalRead(AGV_LOST_PIN) == HIGH);
-    bool obstacleHigh = (digitalRead(AGV_OBJ_DETECT_PIN) == HIGH);
+    // 2. Debounce and handle physical sensor inputs (AGV lost, obstacle detection)
+    // Read current physical states
+    bool currentPhysicalLost = (digitalRead(AGV_LOST_PIN) == HIGH);
+    bool currentPhysicalObstacle = (digitalRead(AGV_OBJ_DETECT_PIN) == HIGH);
 
-    if (lostHigh && !lastLostHigh) {
-        if (stateMgr.state.errorCount < MAX_ERRORS) {
-            stateMgr.state.errors[stateMgr.state.errorCount++] = {
-                "AGV_LOST", "AGV lost line/position", "FATAL"
-            };
-        }
-        stateMgr.publishNow(publishState);
+    // --- Noise filtering for LOST LINE SIGNAL ---
+    if (currentPhysicalLost != lastPhysicalLost) {
+        lastLostDebounceTime = millis(); // Reset timer if signal changed
     }
-
-    if (obstacleHigh && !lastObstacleHigh) {
-        if (stateMgr.state.errorCount < MAX_ERRORS) {
-            stateMgr.state.errors[stateMgr.state.errorCount++] = {
-                "OBSTACLE", "Object detected", "WARNING"
-            };
+    if ((millis() - lastLostDebounceTime) > DEBOUNCE_DELAY_MS) {
+        // Signal has been stable for the debounce period
+        if (currentPhysicalLost != stableLostState) {
+            stableLostState = currentPhysicalLost; // Update stable state
+            
+            if (stableLostState) { // Upward edge: Just lost the line/position
+                stateMgr.addError("AGV_LOST", "AGV lost line/position", "FATAL");
+            } else {               // Downward edge: Just found the line/position
+                stateMgr.clearError("AGV_LOST");
+            }
+            stateMgr.publishNow(publishState); // Notify server immediately of the change
         }
-        stateMgr.publishNow(publishState);
-}
+    }
+    lastPhysicalLost = currentPhysicalLost;
 
-    lastLostHigh     = lostHigh;
-    lastObstacleHigh = obstacleHigh;
+    // --- Noise filtering for OBSTACLE SIGNAL ---
+    if (currentPhysicalObstacle != lastPhysicalObstacle) {
+        lastObstacleDebounceTime = millis();
+    }
+    if ((millis() - lastObstacleDebounceTime) > DEBOUNCE_DELAY_MS) {
+        // Signal has been stable for the debounce period
+        if (currentPhysicalObstacle != stableObstacleState) {
+            stableObstacleState = currentPhysicalObstacle; 
+            
+            if (stableObstacleState) { // Upward edge: Object detected
+                stateMgr.addError("OBSTACLE", "Object detected", "WARNING");
+            } else {                   // Downward edge: Object removed
+                stateMgr.clearError("OBSTACLE");
+            }
+            stateMgr.publishNow(publishState); // Notify server immediately of the change
+        }
+    }
+    lastPhysicalObstacle = currentPhysicalObstacle;
 
-    // 2. Route incoming MQTT messages
+    // 3. Route incoming MQTT messages
     if (network.incoming.hasNew) {
         String topic   = network.incoming.topic;
         String payload = network.incoming.payload;
         network.incoming.hasNew = false;
 
-        if (topic == TOPIC_ORDER) {
+        if (topic == topicOrder) {
             orderMgr.handleOrder(payload);
             stateMgr.publishNow(publishState);
 
-        } else if (topic == TOPIC_INSTANT_ACTIONS) {
+        } else if (topic == topicInstantActions) {
             orderMgr.handleInstantAction(payload);
             stateMgr.publishNow(publishState);
 

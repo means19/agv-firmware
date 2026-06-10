@@ -1,4 +1,5 @@
 #pragma once
+#include <Arduino.h>
 
 // ── WiFi ──────────────────────────────────────────────────────────
 #define WIFI_SSID     "ngoc"
@@ -8,24 +9,26 @@
 #define MQTT_SERVER   "192.168.1.8"
 #define MQTT_PORT     1884
 
-// ── AGV identity ──────────────────────────────────────────────────
-#define AGV_CLIENT_ID    "esp32_agv_1"
-#define AGV_SERIAL       "0001"
+// ── AGV identity (Constant) ────────────────────────────────────────
 #define AGV_MANUFACTURER "DATN"
 #define AGV_MAP_ID       "map_1"
 #define VDA_VERSION      "2.1.0"
 
-// ── MQTT topics ───────────────────────────────────────────────────
-#define TOPIC_ORDER           "uagv/v2/DATN/0001/order"
-#define TOPIC_INSTANT_ACTIONS "uagv/v2/DATN/0001/instantActions"
-#define TOPIC_STATE           "uagv/v2/DATN/0001/state"
-#define TOPIC_CONNECTION      "uagv/v2/DATN/0001/connection"
+// ── AGV identity (Dynamic - Will be generated automatically from MAC Address) ─────
+extern String agvSerial;
+extern String agvClientId;
+
+// ── MQTT topics (Dynamic) ────────────────────────────────────────────
+extern String topicOrder;
+extern String topicInstantActions;
+extern String topicState;
+extern String topicConnection;
 
 // ── Timing ────────────────────────────────────────────────────────
-#define RFID_POLL_MS        100    // how often to poll the RFID reader (ms)
-#define STATE_HEARTBEAT_MS  30000  // publish state every 30 s
-#define TAG_DEBOUNCE_MS     3000   // ignore same tag for 3 s after first read
-#define MQTT_RECONNECT_MS   5000   // wait 5 s between reconnect attempts
+#define RFID_POLL_MS        100    
+#define STATE_HEARTBEAT_MS  30000  
+#define TAG_DEBOUNCE_MS     3000   
+#define MQTT_RECONNECT_MS   5000
 
 // ── RFID mode ─────────────────────────────────────────────────────
 // 0 = simulation — tags come from "test/rfid" MQTT topic (Test_publisher.py)

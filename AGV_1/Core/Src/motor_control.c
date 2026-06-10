@@ -39,7 +39,7 @@ static void setPWM_Right(float speed)
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, pwm);
 }
 
-/* ===== Direction ===== */ 
+/* ===== Direction ===== */
 static void Left_Forward(void)
 {
     HAL_GPIO_WritePin(L_IN1_PORT, L_IN1_PIN, GPIO_PIN_SET);
@@ -56,6 +56,12 @@ static void Right_Backward(void)
 {
     HAL_GPIO_WritePin(R_IN1_PORT, R_IN1_PIN, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(R_IN2_PORT, R_IN2_PIN, GPIO_PIN_SET);
+}
+
+static void Left_Backward(void)
+{
+    HAL_GPIO_WritePin(L_IN1_PORT, L_IN1_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(L_IN2_PORT, L_IN2_PIN, GPIO_PIN_SET);
 }
 
 /* ===== Public Functions ===== */
@@ -92,6 +98,15 @@ void Motor_RotateRight(float speed)
 {
     Left_Forward();
     Right_Backward();
+
+    setPWM_Left(speed);
+    setPWM_Right(speed);
+}
+
+void Motor_RotateLeft(float speed)
+{
+    Left_Backward();
+    Right_Forward();
 
     setPWM_Left(speed);
     setPWM_Right(speed);

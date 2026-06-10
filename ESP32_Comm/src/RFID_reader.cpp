@@ -36,42 +36,32 @@ String RfidManager::readHardware() {
         return ""; // No card present
     }
 
-    // 2. Debounce - Avoid multiple activations from holding the card
+    // 2. Read the UID of the card and convert it to a String (Hex)
+    String currentUID = "";
+    for (byte i = 0; i < mfrc522.uid.size; i++) {
+        if (mfrc522.uid.uidByte[i] < 0x10) currentUID += "0";
+        currentUID += String(mfrc522.uid.uidByte[i], HEX);
+    }
+    currentUID.toUpperCase();
 
-    if (millis() - lastScanTime < debounceDelay) {
-        mfrc522.PICC_HaltA(); // Stop reading the current card
+    // 3. Debounce - Avoid multiple activations from holding the card
+
+    if (currentUID == lastScannedUID && (millis() - lastScanTime < debounceDelay)) {
+        mfrc522.PICC_HaltA(); // Stop the card to prevent further reads
         return "";
     }
 
-    // 3. Read the UID of the card and convert it to a String (Hex)
-    String uidString = "";
-    for (byte i = 0; i < mfrc522.uid.size; i++) {
-        if (mfrc522.uid.uidByte[i] < 0x10) uidString += "0";
-        uidString += String(mfrc522.uid.uidByte[i], HEX);
-    }
-    uidString.toUpperCase();
-
-    // 4. Update the scan time and put the card to sleep
+    // 4. If we reach here, it's a new scan. Update the last scanned UID and time.
+    lastScannedUID = currentUID;
     lastScanTime = millis();
-    mfrc522.PICC_HaltA();
-    
-    Serial.print("[RFID] Scanned Physical UID: ");
-    Serial.println(uidString);
-    
-    // 5. Return the corresponding Node ID
-    return mapUidToNodeId(uidString);
-}
 
-// Maps a physical RFID UID to an application-level node ID.
-// Unrecognized UIDs are returned unchanged.
-String RfidManager::mapUidToNodeId(String uid) {
-    // TODO: Implement your actual mapping logic here. This is just a placeholder.
-    // Can replace this with a lookup table, database query, or any other mapping mechanism.
-    if (uid == "F4F0C373") return "node_start";
-    if (uid == "14FECF73") return "edge_1";
-    if (uid == "D49ABF73") return "node_end";
-    
-    
-    // If the UID is not recognized, return it as is or return a default value
-    return uid; 
+    // 5. Halt the card and stop encryption to allow for the next scan
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1(); 
+
+    Serial.print("[RFID] Scanned Physical UID: ");
+    Serial.println(currentUID);
+
+    // 6. Map the physical UID to an application node ID and return it
+    return currentUID;
 }

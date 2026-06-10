@@ -2,7 +2,6 @@
 #include "STM32_comm.h"
 #include "config.h"
 #include <Arduino.h>
-#include "STM32_comm.h"
 
 // ─────────────────────────────────────────────
 void OrderManager::begin(AGVState* sharedState) {
@@ -28,7 +27,7 @@ void OrderManager::addTagMapping(const String& tagUid, const String& nodeId) {
 //  Handle incoming "order" message from master control
 // ─────────────────────────────────────────────────────────────────
 void OrderManager::handleOrder(const String& json) {
-    StaticJsonDocument<2048> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, json);
     if (err) {
         Serial.println("[ORDER] Bad JSON: " + String(err.c_str()));
@@ -140,7 +139,7 @@ Action OrderManager::parseAction(JsonObjectConst obj) {
 //  Handle incoming "instantActions" message
 // ─────────────────────────────────────────────────────────────────
 void OrderManager::handleInstantAction(const String& json) {
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, json)) {
         Serial.println("[ORDER] Bad instantAction JSON");
         return;
@@ -225,6 +224,8 @@ void OrderManager::traverseNode(const String& nodeId) {
     // Check if this tag matches the next expected base node
     if (baseNodes[0].nodeId == nodeId) {
 
+        MOVE_cmd cmd = getNextMoveCommand();
+
         // Update the AGV's last known position
         state->position.x           = baseNodes[0].x;
         state->position.y           = baseNodes[0].y;
@@ -257,14 +258,12 @@ void OrderManager::traverseNode(const String& nodeId) {
         Serial.printf("[ORDER] Traversed: %s | base=%d horizon=%d\n",
             nodeId.c_str(), baseCount, horizonCount);
 
+        sendMoveCommand(cmd);
+
     } else {
         // Mid-edge tag — just update position, no node release
         Serial.println("[ORDER] Edge marker: " + nodeId);
     }
-
-    uint8_t cmd = getNextMoveCommand();
-    sendMoveCommand(cmd);
-
 }
 
 // ─────────────────────────────────────────────
@@ -311,7 +310,7 @@ void OrderManager::rebuildState() {
         state->edgeStates[state->edgeCount++] = horizonEdges[i];
 }
 
-uint8_t OrderManager::getNextMoveCommand() {
+MOVE_cmd OrderManager::getNextMoveCommand() {
     if (baseCount < 2) {
         return CMD_STOP;
     }

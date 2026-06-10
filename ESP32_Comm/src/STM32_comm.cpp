@@ -5,11 +5,11 @@
 
 
 
-void sendMoveCommand(uint8_t cmd) {
+void sendMoveCommand(MOVE_cmd cmd) {
     uint8_t packet[3];
 
     packet[0] = 0xB1;  // header
-    packet[1] = cmd;
+    packet[1] = static_cast<uint8_t>(cmd);
     packet[2] = packet[0] ^ packet[1]; // simple XOR checksum
 
     Serial2.write(packet, 3);  // or your UART port

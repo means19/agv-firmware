@@ -46,7 +46,7 @@
  *                 set to 0 if a dark line reads GPIO_PIN_RESET.
  * This is the only place you need to change for inverted sensors.
  */
-#define SENSOR_LINE_LEVEL   GPIO_PIN_SET
+#define SENSOR_LINE_LEVEL   GPIO_PIN_RESET
 
 /* ---------------------------------------------------------------
  * Data structure

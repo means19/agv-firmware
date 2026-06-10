@@ -13,21 +13,27 @@ void NetworkManager::begin() {
     mqttClient.setCallback(mqttCallback);
     mqttClient.setBufferSize(2048);  // large enough for VDA 5050 order messages
 
+    // MQTT keep-alive: broker will consider us disconnected if we don't ping within this interval
+    mqttClient.setKeepAlive(60);
+
     connectWifi();
-    connectMqtt();
 }
 
 // ─────────────────────────────────────────────
 void NetworkManager::loop() {
-    // Re-connect WiFi if dropped
+    unsigned long now = millis();
+
+    // 1. Manage WiFi connection — if we're not connected, try to reconnect every 5s and return immediately
     if (WiFi.status() != WL_CONNECTED) {
-        connectWifi();
+        if (now - lastReconnectTime >= 5000) {
+            lastReconnectTime = now;
+            connectWifi();
+        }
         return;
     }
 
-    // Re-connect MQTT, but don't spam — wait between attempts
+    // 2. Manage MQTT Non-blocking
     if (!mqttClient.connected()) {
-        unsigned long now = millis();
         if (now - lastReconnectTime >= MQTT_RECONNECT_MS) {
             lastReconnectTime = now;
             connectMqtt();
@@ -35,14 +41,14 @@ void NetworkManager::loop() {
         return;
     }
 
-    // Let PubSubClient process incoming messages
+    // 3. Process incoming messages
     mqttClient.loop();
 }
 
 // ─────────────────────────────────────────────
 bool NetworkManager::publishState(const String& json) {
     if (!mqttClient.connected()) return false;
-    return mqttClient.publish(TOPIC_STATE, json.c_str());
+    return mqttClient.publish(topicState.c_str(), json.c_str());
 }
 
 // ─────────────────────────────────────────────
@@ -50,7 +56,7 @@ bool NetworkManager::publishConnection(const String& status) {
     if (!mqttClient.connected()) return false;
     String payload = "{\"connectionState\":\"" + status + "\"}";
     // retained=true so master control always knows our last connection status
-    return mqttClient.publish(TOPIC_CONNECTION, payload.c_str(), true);
+    return mqttClient.publish(topicConnection.c_str(), payload.c_str(), true);
 }
 
 // ─────────────────────────────────────────────
@@ -60,21 +66,9 @@ bool NetworkManager::isConnected() {
 
 // ─────────────────────────────────────────────
 void NetworkManager::connectWifi() {
-    Serial.print("[NET] Connecting to WiFi");
+    Serial.println("[NET] Attempting WiFi connection...");
+    
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[NET] WiFi OK: " + WiFi.localIP().toString());
-    } else {
-        Serial.println("\n[NET] WiFi failed, will retry");
-    }
 }
 
 // ─────────────────────────────────────────────
@@ -83,22 +77,21 @@ void NetworkManager::connectMqtt() {
 
     Serial.print("[NET] Connecting to MQTT...");
 
-    // Last-will: broker sends this if we disconnect unexpectedly (VDA 5050 §6.14)
     String lastWill = "{\"connectionState\":\"CONNECTIONBROKEN\"}";
 
     bool ok = mqttClient.connect(
-        AGV_CLIENT_ID,
+        agvClientId.c_str(),
         nullptr, nullptr,
-        TOPIC_CONNECTION, 1, true, lastWill.c_str()
+        topicConnection.c_str(), 1, true, lastWill.c_str()
     );
 
     if (ok) {
         Serial.println("connected");
-        mqttClient.subscribe(TOPIC_ORDER,           0);
-        mqttClient.subscribe(TOPIC_INSTANT_ACTIONS, 0);
+        mqttClient.subscribe(topicOrder.c_str(),           0);
+        mqttClient.subscribe(topicInstantActions.c_str(), 0);
 
 #if USE_REAL_RFID == 0
-        mqttClient.subscribe("test/rfid", 0);  // fake RFID reads — only in test mode
+        mqttClient.subscribe("test/rfid", 0);
 #endif
         publishConnection("ONLINE");
     } else {
@@ -113,10 +106,15 @@ void NetworkManager::connectMqtt() {
 void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (_instance == nullptr) return;
 
-    _instance->incoming.topic   = String(topic);
-    _instance->incoming.payload = "";
-    for (unsigned int i = 0; i < length; i++) {
-        _instance->incoming.payload += (char)payload[i];
-    }
+    _instance->incoming.topic = String(topic);
+    
+    // PubSubClient's payload is not null-terminated, so we create a temporary buffer to convert it to a String safely.
+    char* tempBuffer = new char[length + 1];
+    memcpy(tempBuffer, payload, length);
+    tempBuffer[length] = '\0';
+    
+    _instance->incoming.payload = String(tempBuffer);
+    delete[] tempBuffer;
+    
     _instance->incoming.hasNew = true;
 }

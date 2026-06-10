@@ -24,10 +24,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Hcsr04.h"
-#include "motor_control.h"
+#include "ESP32_comm.h"
 #include "states_handling.h"
-#include "ESP32_Comm.h"
+#include "motor_control.h"
+#include "Hcsr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,10 +48,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-#define OBJECT_ERROR_DETECTED_RANGE 15.00
-
-AGV_System agv;      /* Full AGV state machine                   */
-uint8_t    rx_byte;  /* 1-byte buffer for UART interrupt         */
+AGV_System agv_system;
+uint8_t rx_byte;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,64 +92,46 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_TIM2_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
-  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-    Motor_Init();       /* Start TIM3 PWM channels, stop motors  */
-    AGV_Init(&agv);     /* Init FSM, PID, sensors, UART parser   */
-    HCSR04_Init(&htim2); /* Init HC-SR04 driver (non-blocking)    */
- 
-    /* Arm UART interrupt — receive 1 byte at a time */
-    HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+  Motor_Init();            
+  AGV_Init(&agv_system);
+  HCSR04_Init(&htim2);
+
+  // Enable UART receive interrupt to get commands from ESP32
+  HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    static uint32_t last_hcsr04_ms = 0U;
-    uint32_t now_ms = HAL_GetTick();
-
-    // 1. Trigger HC-SR04 every 100 ms (non-blocking)
-    if ((uint32_t)(now_ms - last_hcsr04_ms) >= 100U)
-    {
-      HCSR04_Trigger();
-      last_hcsr04_ms = now_ms;
-    }
-
-    // 2. Update timeout of sensor
-    HCSR04_Update();
-
-    // 3. Check for object detection and handle emergency stop
-    if (Object_detected())
-    {
-      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_SET);
-
-      // If an object is detected and not already stopped, transition to STOP state
-      if (agv.state != AGV_STATE_STOP)
-      {
-        agv.state = AGV_STATE_STOP;
-        Motor_Stop();
-        // TODO: Send 1 UART message to ESP32 to notify about the obstacle
-      }
-    }
-    else
-    {
-      HAL_GPIO_WritePin(Error_1_GPIO_Port, Error_1_Pin, GPIO_PIN_RESET);
-
-      if (agv.state == AGV_STATE_STOP && agv.current_cmd == CMD_FORWARD)
-      {
-        agv.state = AGV_STATE_FOLLOW_LINE;
-      }
-    }
-
-    // 4. Update AGV state machine (non-blocking)
-    AGV_Update(&agv); 
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  uint32_t current_tick = HAL_GetTick();
+	  static uint32_t last_trigger_tick = 0;
+	  static uint32_t last_heartbeat_tick = 0;
+
+	  // 1. (OPTIONAL) Blink LED heartbeat each 500ms to indicate the system is alive
+	  if (current_tick - last_heartbeat_tick >= 500) {
+		  HAL_GPIO_TogglePin(LED_HEARTBEAT_GPIO_Port, LED_HEARTBEAT_Pin);
+	      last_heartbeat_tick = current_tick;
+	  }
+
+	  // 2. Activate ultrasonic trigger every 100ms (or as needed)
+	  if (current_tick - last_trigger_tick >= 100) {
+		  HCSR04_Trigger();
+	      last_trigger_tick = current_tick;
+	  }
+
+	  // 3. Update ultrasonic sensor readings
+	  HCSR04_Update();
+
+	  // 4. Run FSM update for AGV control logic
+	  AGV_Update(&agv_system);
   }
   /* USER CODE END 3 */
 }
@@ -168,12 +148,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL8;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -185,41 +166,35 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
 }
 
 /* USER CODE BEGIN 4 */
+// Callback interrupt UART (Receive from ESP32)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1)
     {
-        ESP32_ReceiveByte(&agv.comm, rx_byte);
-        HAL_UART_Receive_IT(&huart1, &rx_byte, 1);  /* re-arm */
+        // Push reveived byte into ESP32 command parser
+        ESP32_ReceiveByte(&agv_system.comm, rx_byte);
+
+        // Reactivate UART receive interrupt for the next byte
+        HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
     }
 }
 
-/* ============================================================
- * EXTI Interrupt Callback (RFID trigger)
- *
- * Fires when RFID reader pulses the trigger pin.
- * Sets cmd_ready — AGV_Update() will pop and execute the command.
- *
- * Change GPIO_PIN_5 to whichever pin your RFID is wired to.
- * ============================================================ */
+// Callback interrupt EXTI (Capture echo pulse from HC-SR04)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  HCSR04_EXTI_Handler(GPIO_Pin);
-    if (GPIO_Pin == GPIO_PIN_5)   /* <-- match your RFID EXTI pin in CubeMX */
-    {
-        AGV_OnRFIDEvent(&agv);
-    }
+    HCSR04_EXTI_Handler(GPIO_Pin);
 }
+
 /* USER CODE END 4 */
 
 /**

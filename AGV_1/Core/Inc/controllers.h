@@ -1,5 +1,6 @@
-#ifndef CONTROLLERS
-#define CONTROLLERS
+#ifndef CONTROLLERS_H
+#define CONTROLLERS_H
+
 
 typedef struct
 {
@@ -24,4 +25,4 @@ void PID_Reset(PID_parameters *pid);
 // Compute PID output
 float PID_Compute(PID_parameters *pid, float setpoint, float measurement);
 
-#endif
+#endif /* CONTROLLERS_H */

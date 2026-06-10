@@ -44,12 +44,12 @@ typedef enum {
 /* ===== Struct ===== */
 typedef struct {
     AGV_Command buffer[QUEUE_SIZE];
-    uint8_t head;
-    uint8_t tail;
+    volatile uint8_t head;
+    volatile uint8_t tail;
 
     /* parser state */
-    uint8_t state;
-    uint8_t temp_cmd;
+    volatile uint8_t state;
+    volatile uint8_t temp_cmd;
 
 } ESP32_Comm;
 

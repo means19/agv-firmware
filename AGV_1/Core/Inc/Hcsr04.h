@@ -18,11 +18,11 @@
 #include "stm32f1xx_hal.h"
 
 /* ---------- Pin config ---------- */
-#define TRIG_PORT   GPIOB
-#define TRIG_PIN    GPIO_PIN_1
+#define TRIG_PORT   GPIOA
+#define TRIG_PIN    GPIO_PIN_5
 
-#define ECHO_PORT   GPIOB
-#define ECHO_PIN    GPIO_PIN_11
+#define ECHO_PORT   GPIOA
+#define ECHO_PIN    GPIO_PIN_8
 
 /* ---------- Timing and thresholds ---------- */
 #define HCSR04_TIMEOUT_MS       30U

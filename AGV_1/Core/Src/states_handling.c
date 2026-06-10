@@ -25,9 +25,11 @@
  */
 
 #include "states_handling.h"
-#include "ESP32_comm.h"
+#include "esp32_comm.h"
 #include "line_sensor_weight.h"
 #include "controllers.h"
+#include "motor_control.h"  /* Đã bổ sung */
+#include "Hcsr04.h"         /* Đã bổ sung module Siêu âm */
 #include "stm32f1xx_hal.h"
 #include <math.h>
 
@@ -104,7 +106,12 @@ static void State_Rotate(AGV_System *agv)
         return;
     }
 
-    Motor_RotateRight(AGV_ROTATE_SPEED);
+    /* UPDATE: Rotate based on the last navigation command */
+    if (agv->current_cmd == CMD_LEFT) {
+        Motor_RotateLeft(AGV_ROTATE_SPEED);
+    } else {
+        Motor_RotateRight(AGV_ROTATE_SPEED);
+    }
 }
 
 static void State_ReacquireLine(AGV_System *agv)
@@ -119,7 +126,12 @@ static void State_ReacquireLine(AGV_System *agv)
         return;
     }
 
-    Motor_RotateRight(AGV_REACQUIRE_SPEED);
+    /* UPDATE: Check the corresponding line based on the current command */
+    if (agv->current_cmd == CMD_LEFT) {
+        Motor_RotateLeft(AGV_REACQUIRE_SPEED);
+    } else {
+        Motor_RotateRight(AGV_REACQUIRE_SPEED);
+    }
 }
 
 /* ===== PUBLIC ===== */
@@ -146,14 +158,43 @@ void AGV_Update(AGV_System *agv)
 {
     LineSensor_Update(&agv->line_sensor);
 
-    /* 🔥 EVENT-DRIVEN COMMAND DIRECTLY FROM ESP32 UART */
-        AGV_Command cmd;
-    // ESP32_GetCommand() checks if a new command is available from the ESP32 via UART.
-    // returns true if a new command is available and assigns it to the cmd variable.
-        if (ESP32_GetCommand(&agv->comm, &cmd)) {
-            AGV_HandleCommand(agv, cmd);
+    /* 1. ĐỌC LỆNH TỪ MẠNG (UART ESP32) */
+    AGV_Command cmd;
+    if (ESP32_GetCommand(&agv->comm, &cmd)) {
+        AGV_HandleCommand(agv, cmd);
     }
 
+    /* 2. SAFETY CORE: KIỂM TRA VẬT CẢN (GHI ĐÈ LỆNH) */
+    if (Object_detected()) {
+        /* Nếu có vật cản và xe chưa dừng, lập tức ép dừng */
+        if (agv->state != AGV_STATE_STOP) {
+            AGV_TransitionTo(agv, AGV_STATE_STOP);
+            /* Bật LED báo lỗi Error_1 trên PB1 (Cấu hình tùy chọn) */
+            // HAL_GPIO_WritePin(GPIOB, Error_1_Pin, GPIO_PIN_SET);
+        }
+    } else {
+        /* TẮT LED lỗi (Cấu hình tùy chọn) */
+        // HAL_GPIO_WritePin(GPIOB, Error_1_Pin, GPIO_PIN_RESET);
+
+        /* TỰ ĐỘNG PHỤC HỒI:
+         * Nếu xe đang dừng an toàn nhưng bản chất lệnh hệ thống vẫn là ĐI,
+         * xe sẽ tự động tiếp tục nhiệm vụ khi rút vật cản ra.
+         */
+        if (agv->state == AGV_STATE_STOP) {
+            if (agv->current_cmd == CMD_FORWARD ||
+                agv->current_cmd == CMD_LEFT ||
+                agv->current_cmd == CMD_RIGHT)
+            {
+                AGV_TransitionTo(agv, AGV_STATE_FOLLOW_LINE);
+            }
+            else if (agv->current_cmd == CMD_ROTATE)
+            {
+                AGV_TransitionTo(agv, AGV_STATE_ROTATE);
+            }
+        }
+    }
+
+    /* 3. THỰC THI TRẠNG THÁI (ĐÃ ĐƯỢC LỌC QUA SAFETY CORE) */
     switch (agv->state)
     {
         case AGV_STATE_FOLLOW_LINE:
@@ -175,6 +216,7 @@ void AGV_Update(AGV_System *agv)
         case AGV_STATE_STOP:
         case AGV_STATE_IDLE:
         default:
+            /* Xe đang dừng, không làm gì cả để tiết kiệm CPU */
             break;
     }
 }

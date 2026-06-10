@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "agv_types.h"
+#include "STM32_comm.h"
 
 // ─────────────────────────────────────────────────────────────────
 //  order_manager
@@ -33,7 +34,7 @@ public:
     // Example: addTagMapping("A1:B2:C3:D4", "node_loading_dock")
     void addTagMapping(const String& tagUid, const String& nodeId);
 
-    uint8_t getNextMoveCommand();
+    MOVE_cmd getNextMoveCommand();
 
 
 private:

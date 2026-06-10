@@ -37,15 +37,47 @@ public:
         state.battery          = { 100.0f, 0.0f, false };
     }
 
+    void addError(const String& type, const String& desc, const String& level) {
+        // 1. Check if error of the same type already exists — if yes, skip to avoid duplicates
+        for (int i = 0; i < state.errorCount; i++) {
+            if (state.errors[i].errorType == type) return; 
+        }
+
+        // 2. If not, add new error
+        if (state.errorCount < MAX_ERRORS) {
+            state.errors[state.errorCount].errorType = type;
+            state.errors[state.errorCount].errorDescription = desc;
+            state.errors[state.errorCount].errorLevel = level;
+            state.errorCount++;
+        }
+    }
+
+    // Clears an error of the specified type (if it exists)
+    void clearError(const String& type) {
+        for (int i = 0; i < state.errorCount; i++) {
+            if (state.errors[i].errorType == type) {
+                // Find the error and remove it by shifting subsequent errors up
+                for (int j = i; j < state.errorCount - 1; j++) {
+                    state.errors[j] = state.errors[j + 1];
+                }
+                // Clear the last error slot (now a duplicate after shifting)
+                state.errorCount--;
+                return;
+            }
+        }
+    }
+    // ────────────────────────────────────────────────────────
+
     // Build JSON and return it as a String (network_manager will publish it)
     String buildJson() {
-        DynamicJsonDocument doc(3072);
+        // ArduinoJson v7: Chỉ dùng JsonDocument
+        JsonDocument doc;
 
         // Header
         doc["headerId"]     = headerId++;
         doc["version"]      = VDA_VERSION;
         doc["manufacturer"] = AGV_MANUFACTURER;
-        doc["serialNumber"] = AGV_SERIAL;
+        doc["serialNumber"] = agvSerial; 
 
         // Order info
         doc["orderId"]            = state.orderId;
@@ -54,25 +86,25 @@ public:
         doc["lastNodeSequenceId"] = state.lastNodeSequenceId;
 
         // Remaining nodes to traverse
-        JsonArray nodeArr = doc.createNestedArray("nodeStates");
+        JsonArray nodeArr = doc["nodeStates"].to<JsonArray>();
         for (int i = 0; i < state.nodeCount; i++) {
-            JsonObject n = nodeArr.createNestedObject();
+            JsonObject n = nodeArr.add<JsonObject>();
             n["nodeId"]     = state.nodeStates[i].nodeId;
             n["sequenceId"] = state.nodeStates[i].sequenceId;
             n["released"]   = state.nodeStates[i].released;
         }
 
         // Remaining edges
-        JsonArray edgeArr = doc.createNestedArray("edgeStates");
+        JsonArray edgeArr = doc["edgeStates"].to<JsonArray>();
         for (int i = 0; i < state.edgeCount; i++) {
-            JsonObject e = edgeArr.createNestedObject();
+            JsonObject e = edgeArr.add<JsonObject>();
             e["edgeId"]     = state.edgeStates[i].edgeId;
             e["sequenceId"] = state.edgeStates[i].sequenceId;
             e["released"]   = state.edgeStates[i].released;
         }
 
         // Position
-        JsonObject pos = doc.createNestedObject("agvPosition");
+        JsonObject pos = doc["agvPosition"].to<JsonObject>();
         pos["x"]           = state.position.x;
         pos["y"]           = state.position.y;
         pos["theta"]       = state.position.theta;
@@ -80,19 +112,19 @@ public:
         pos["initialized"] = state.position.initialized;
 
         // Action states
-        JsonArray actArr = doc.createNestedArray("actionStates");
+        JsonArray actArr = doc["actionStates"].to<JsonArray>();
         for (int i = 0; i < state.actionStateCount; i++) {
-            JsonObject a = actArr.createNestedObject();
+            JsonObject a = actArr.add<JsonObject>();
             a["actionId"]     = state.actionStates[i].actionId;
             a["actionType"]   = state.actionStates[i].actionType;
             a["actionStatus"] = state.actionStates[i].status;
         }
 
         // Battery
-        JsonObject bat = doc.createNestedObject("batteryState");
-        bat["batteryCharge"]   = state.battery.batteryCharge;
-        bat["batteryVoltage"]  = state.battery.batteryVoltage;
-        bat["charging"]        = state.battery.charging;
+        JsonObject bat = doc["batteryState"].to<JsonObject>();
+        bat["batteryCharge"]  = state.battery.batteryCharge;
+        bat["batteryVoltage"] = state.battery.batteryVoltage;
+        bat["charging"]       = state.battery.charging;
 
         // Flags
         doc["driving"]        = state.driving;
@@ -101,9 +133,9 @@ public:
         doc["operatingMode"]  = state.operatingMode;
 
         // Errors
-        JsonArray errArr = doc.createNestedArray("errors");
+        JsonArray errArr = doc["errors"].to<JsonArray>();
         for (int i = 0; i < state.errorCount; i++) {
-            JsonObject e = errArr.createNestedObject();
+            JsonObject e = errArr.add<JsonObject>();
             e["errorType"]        = state.errors[i].errorType;
             e["errorDescription"] = state.errors[i].errorDescription;
             e["errorLevel"]       = state.errors[i].errorLevel;

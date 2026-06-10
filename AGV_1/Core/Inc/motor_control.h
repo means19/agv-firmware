@@ -21,6 +21,8 @@ void Motor_Forward(float speed);
 
 void Motor_RotateRight(float speed);
 
+void Motor_RotateLeft(float speed);
+
 void Motor_ApplyPID(float base_speed, float correction);
 
 #endif

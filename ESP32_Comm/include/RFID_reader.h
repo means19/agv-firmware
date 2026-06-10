@@ -1,7 +1,6 @@
 #ifndef RFID_READER_H
 #define RFID_READER_H
 
-#pragma once
 #include <Arduino.h>
 #include "config.h"
 #include <SPI.h>
@@ -49,9 +48,6 @@ public:
     
     void init();
     String readHardware();
-    
-    // Convert physical UID to system Node ID
-    String mapUidToNodeId(String uid); 
 };
 
 #endif
