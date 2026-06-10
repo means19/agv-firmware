@@ -30,6 +30,8 @@ This firmware runs on the STM32F103C8T6 and is responsible for all time-critical
 ### 3.1 Main Loop (Non-Blocking)
 The firmware uses a single main loop with periodic scheduling, avoiding long delays:
 - Trigger HC-SR04 at >= 60 ms intervals.
+ - Trigger HC-SR04 at ~100 ms intervals (configurable in `main.c`).
+ - A heartbeat LED toggles every 500 ms to indicate the system is alive.
 - Update ultrasonic timeout state each loop.
 - Evaluate obstacle condition and manipulate the AGV state machine.
 - Always call AGV_Update() to maintain PID timing and UART command handling.
@@ -41,6 +43,10 @@ The AGV state machine is implemented in states_handling.c and drives motor behav
 - AGV_STATE_ROTATE: rotation to find the line.
 - AGV_STATE_REACQUIRE_LINE: fine alignment back to the line.
 - AGV_STATE_STOP / AGV_STATE_IDLE: motors stopped.
+Notes on recent behavior changes:
+- PID is computed only while in `AGV_STATE_FOLLOW_LINE`; other states use fixed motor commands.
+- Rotation direction now follows the last navigation command (left/right) instead of always rotating the same way.
+- `REACQUIRE_LINE` uses a position threshold to determine success (weighted sensor position), not a strict timer.
 
 ### 3.3 Command Handling
 Commands are received from ESP32 over UART and processed in AGV_Update():
@@ -77,7 +83,10 @@ Commands are received from ESP32 over UART and processed in AGV_Update():
   - The firmware forces AGV_STATE_STOP and calls Motor_Stop().
 - When obstacle clears:
   - Error LED is cleared.
-  - If the last command is CMD_FORWARD, the AGV resumes AGV_STATE_FOLLOW_LINE.
+ - When obstacle clears the firmware will automatically resume the previously requested motion when appropriate:
+    - If the last command was `CMD_FORWARD`, `CMD_LEFT` or `CMD_RIGHT`, the AGV transitions back to `AGV_STATE_FOLLOW_LINE`.
+    - If the last command was `CMD_ROTATE`, the AGV transitions back to `AGV_STATE_ROTATE`.
+ - Note: safety handling still executes locally on the STM32. If you need backend visibility, add an explicit MQTT/uart notification from the ESP32.
 - PID loop remains active because AGV_Update() is always called.
 
 ## 7. Communication
@@ -87,8 +96,8 @@ Commands are received from ESP32 over UART and processed in AGV_Update():
 
 ### 7.2 UART Flow
 - UART interrupt receives one byte at a time.
-- ESP32_ReceiveByte() pushes valid commands into a queue.
-- AGV_Update() consumes queued commands and updates state.
+ - UART is interrupt-driven on the STM32. `HAL_UART_RxCpltCallback()` forwards received bytes to the ESP32 parser handler (`ESP32_ReceiveByte()` / queue) and re-arms the RX interrupt.
+ - `AGV_Update()` consumes queued commands and transitions the FSM immediately on valid commands.
 
 ## 8. Relevant Modules
 - Core/Src/main.c: main loop, scheduling, and HAL callbacks.
