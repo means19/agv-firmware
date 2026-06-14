@@ -24,6 +24,12 @@ RfidManager::RfidManager(uint8_t ss_pin, uint8_t rst_pin) : mfrc522(ss_pin, rst_
 void RfidManager::init() {
     SPI.begin();
     mfrc522.PCD_Init();
+
+    
+    
+    // [THÊM DÒNG NÀY VÀO ĐỂ TEST]
+    mfrc522.PCD_DumpVersionToSerial();
+
     Serial.println("[RFID] MFRC522 Initialized successfully");
 }
 

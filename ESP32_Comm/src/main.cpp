@@ -13,7 +13,7 @@
 #define TX_PIN 17
 
 #define AGV_LOST_PIN 4
-#define AGV_OBJ_DETECT_PIN 5
+#define AGV_OBJ_DETECT_PIN 13
 
 
 // ── Module instances ──────────────────────────────────────────────
@@ -146,13 +146,20 @@ void loop() {
     }
 
 #if USE_REAL_RFID == 1
-    // 3. Poll real RFID hardware
-    String tag = rfid.readHardware();
+    // 3. Poll real RFID hardware (Có giới hạn tần suất quét để chống treo module)
+    static unsigned long lastRfidPoll = 0;
     
-    if (tag != "") {
-        Serial.printf("[MAIN] Real RFID tag scanned/mapped: %s\n", tag.c_str());
-        orderMgr.onTagRead(tag);
-        stateMgr.publishNow(publishState); // Push state to server
+    // Cứ mỗi RFID_POLL_MS (100ms) mới cho phép giao tiếp SPI với thẻ 1 lần
+    if (millis() - lastRfidPoll >= RFID_POLL_MS) {
+        lastRfidPoll = millis();
+        
+        String tag = rfid.readHardware();
+        
+        if (tag != "") {
+            Serial.printf("[MAIN] Real RFID tag scanned/mapped: %s\n", tag.c_str());
+            orderMgr.onTagRead(tag);
+            stateMgr.publishNow(publishState); // Push state to server
+        }
     }
 #endif
 
