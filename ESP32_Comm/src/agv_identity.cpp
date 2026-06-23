@@ -10,6 +10,7 @@ String topicOrder = "";
 String topicInstantActions = "";
 String topicState = "";
 String topicConnection = "";
+String topicDebug = "";
 
 // 2. Initialize AGV identity and MQTT topics based on ESP32's MAC address
 void initAgvIdentity() {
@@ -30,6 +31,7 @@ void initAgvIdentity() {
     topicInstantActions = baseTopic + "/instantActions";
     topicState          = baseTopic + "/state";
     topicConnection     = baseTopic + "/connection";
+    topicDebug          = baseTopic + "/debug";
 
     Serial.println("[IDENTITY] MAC Address: " + mac);
     Serial.println("[IDENTITY] Assigned Serial: " + agvSerial);

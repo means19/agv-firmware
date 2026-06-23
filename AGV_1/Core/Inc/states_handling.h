@@ -7,14 +7,14 @@
 #include <stdint.h>
 
 /* ===== CONFIG ===== */
-#define AGV_BASE_SPEED          60.0f
-#define AGV_ROTATE_SPEED        40.0f
+#define AGV_BASE_SPEED          45.0f
+#define AGV_ROTATE_SPEED        30.0f
 #define AGV_REACQUIRE_SPEED     30.0f
 #define AGV_REACQUIRE_THRESHOLD 0.5f
 #define AGV_LOST_LINE_TIMEOUT_MS 300
 
-#define AGV_PID_KP 30.0f
-#define AGV_PID_KI 0.1f
+#define AGV_PID_KP 25.0f
+#define AGV_PID_KI 0.0f
 #define AGV_PID_KD 10.0f
 
 /* ===== STATES ===== */

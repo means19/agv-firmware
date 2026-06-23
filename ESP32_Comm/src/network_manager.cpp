@@ -60,6 +60,14 @@ bool NetworkManager::publishConnection(const String& status) {
 }
 
 // ─────────────────────────────────────────────
+extern String topicDebug; // Gọi lại biến từ agv_identity
+
+bool NetworkManager::publishDebug(const String& logMsg) {
+    if (!mqttClient.connected()) return false;
+    return mqttClient.publish(topicDebug.c_str(), logMsg.c_str());
+}
+
+// ─────────────────────────────────────────────
 bool NetworkManager::isConnected() {
     return mqttClient.connected();
 }

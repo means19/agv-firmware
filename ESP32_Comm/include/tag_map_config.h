@@ -8,7 +8,7 @@ inline void initTagMappings(OrderManager& orderMgr) {
     // ─────────────────────────────────────────────────────────────────
     
     // Ví dụ các node thực tế trên sa bàn
-    orderMgr.addTagMapping("F4F0C373", "node_start");
-    orderMgr.addTagMapping("14FECF73", "edge_1");
-    orderMgr.addTagMapping("D49ABF73", "node_end");
+    orderMgr.addTagMapping("6D7D1205", "Assy_Drop_1");
+    orderMgr.addTagMapping("63D34D10", "West_C");
+    orderMgr.addTagMapping("C3C0B634", "West_N");
 }

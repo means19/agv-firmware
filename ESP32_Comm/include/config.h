@@ -2,11 +2,11 @@
 #include <Arduino.h>
 
 // ── WiFi ──────────────────────────────────────────────────────────
-#define WIFI_SSID     "Hieu"
-#define WIFI_PASSWORD "12345678"
+#define WIFI_SSID     "ngoc"
+#define WIFI_PASSWORD "N0983324132"
 
 // ── MQTT broker ───────────────────────────────────────────────────
-#define MQTT_SERVER   "10.163.11.221"
+#define MQTT_SERVER   "192.168.1.7"
 #define MQTT_PORT     1884
 
 // ── AGV identity (Constant) ────────────────────────────────────────
@@ -23,6 +23,7 @@ extern String topicOrder;
 extern String topicInstantActions;
 extern String topicState;
 extern String topicConnection;
+extern String topicDebug;
 
 // ── Timing ────────────────────────────────────────────────────────
 #define RFID_POLL_MS        100    

@@ -32,6 +32,7 @@ public:
 
     // Send connection status ("ONLINE" or "OFFLINE")
     bool publishConnection(const String& status);
+    bool publishDebug(const String& logMsg);
 
     bool isConnected();
 

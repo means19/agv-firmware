@@ -2,6 +2,9 @@
 #include "STM32_comm.h"
 #include "config.h"
 #include <Arduino.h>
+#include "network_manager.h"
+
+extern NetworkManager network;
 
 // ─────────────────────────────────────────────
 void OrderManager::begin(AGVState* sharedState) {
@@ -88,8 +91,16 @@ void OrderManager::parseNodes(JsonDocument& doc) {
         Node node;
         node.nodeId      = n["nodeId"]     | String("");
         node.sequenceId  = n["sequenceId"] | 0u;
-        node.x           = n["x"]          | 0.0f;
-        node.y           = n["y"]          | 0.0f;
+        
+        // [FIX LỖI PARSING] Đọc x, y từ object con "nodePosition" chuẩn VDA 5050
+        if (n.containsKey("nodePosition")) {
+            node.x = n["nodePosition"]["x"] | 0.0f;
+            node.y = n["nodePosition"]["y"] | 0.0f;
+        } else {
+            node.x = 0.0f;
+            node.y = 0.0f;
+        }
+
         node.released    = n["released"]   | false;
         node.actionCount = 0;
 
@@ -190,22 +201,40 @@ void OrderManager::handleInstantAction(const String& json) {
 //  RFID tag read — the main event that drives node traversal
 // ─────────────────────────────────────────────────────────────────
 void OrderManager::onTagRead(const String& tagId) {
-    if (state->paused) return;
-    if (baseCount == 0) return;
-
+    
+    // 1. BẮT BUỘC: Tra bảng Map ngay lập tức khi đọc được mã UID thô
     String nodeId = resolveNodeId(tagId);
-    if (nodeId.isEmpty()) {
-        Serial.println("[ORDER] Tag not in map: " + tagId);
+
+    // Hàm resolveNodeId sẽ trả về chính chuỗi gốc nếu không tìm thấy trong Map
+    if (nodeId == tagId) {
+        Serial.println("[ORDER] UID chưa được khai báo trong tag_map_config: " + tagId);
         return;
     }
 
+    // 2. In Log thông báo đã MAP thành công để giám sát trên máy tính
+    Serial.println("[ORDER] MAP THÀNH CÔNG! UID: " + tagId + " ---> Node: " + nodeId);
+
+    // 3. Tính năng mới: Luôn cập nhật vị trí hiện tại của xe (Localization)
+    // Dù xe đang đứng chơi (chưa có Order), dẫm lên thẻ là phải biết mình ở đâu
+    state->lastNodeId = nodeId;
+    state->position.initialized = true;
+
+    // 4. Nếu xe đang dừng hoặc KHÔNG CÓ LỘ TRÌNH (Order), thì chỉ cập nhật vị trí rồi thoát
+    if (state->paused || baseCount == 0) {
+        Serial.println("[ORDER] Xe đang rảnh rỗi. Đã cập nhật tọa độ mới lên Server.");
+        return;
+    }
+
+    // 5. Nếu xe ĐANG CHẠY THEO LỘ TRÌNH (Có Order) thì thực thi thuật toán chạy tiếp
     // Debounce — same tag scanned twice quickly, ignore the second
     if (nodeId == lastTagId && (millis() - lastTagTime) < TAG_DEBOUNCE_MS) {
         return;
     }
+    
     lastTagId   = nodeId;
     lastTagTime = millis();
 
+    // Tính toán góc rẽ và gửi lệnh xuống STM32
     traverseNode(nodeId);
 }
 
@@ -224,7 +253,33 @@ void OrderManager::traverseNode(const String& nodeId) {
     // Check if this tag matches the next expected base node
     if (baseNodes[0].nodeId == nodeId) {
 
+        // 1. Tính toán lệnh di chuyển NGAY BÂY GIỜ
         MOVE_cmd cmd = getNextMoveCommand();
+
+        // 2. In Log Lệnh Di Chuyển ra Serial Monitor để kiểm tra
+        Serial.print("[KINEMATICS] Node: ");
+        Serial.print(nodeId);
+        Serial.print(" -> Lệnh gửi STM32: ");
+        
+        switch (cmd) {
+            case CMD_FORWARD: Serial.println("ĐI THẲNG (0x00)"); break;
+            case CMD_LEFT:    Serial.println("RẼ TRÁI (0x01)"); break;
+            case CMD_RIGHT:   Serial.println("RẼ PHẢI (0x02)"); break;
+            case CMD_STOP:    Serial.println("DỪNG LẠI (0x03)"); break;
+            case CMD_ROTATE:  Serial.println("XOAY TẠI CHỖ (0x04)"); break;
+            default:          Serial.println("KHÔNG XÁC ĐỊNH"); break;
+        }
+        // -------------------------------------------------------------
+        
+        // Push log to debug topic
+        String debugLog = "[KINEMATICS] Node: " + nodeId;
+        if (cmd == CMD_FORWARD) debugLog += " -> Lệnh: ĐI THẲNG";
+        else if (cmd == CMD_LEFT) debugLog += " -> Lệnh: RẼ TRÁI";
+        else if (cmd == CMD_RIGHT) debugLog += " -> Lệnh: RẼ PHẢI";
+        else debugLog += " -> Lệnh: DỪNG LẠI";
+        
+        network.publishDebug(debugLog);
+        // ----------------------------------------------------------
 
         // Update the AGV's last known position
         state->position.x           = baseNodes[0].x;
