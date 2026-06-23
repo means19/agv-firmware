@@ -1,40 +1,55 @@
-ESP32 <-> STM32 Test Harness
+# AGV Integration Harness
 
-Purpose
--------
-Lightweight Python harness to exercise ESP32 firmware via MQTT and capture UART packets sent to the STM32.
+1. Test Case 1: Heartbeat, connection state và LWT.
+2. Test Case 2: Order parsing và kiểm tra payload vượt giới hạn buffer.
 
-Setup
------
-1. Create a Python virtualenv and install dependencies:
+Mục tiêu là giữ code gọn, dễ đọc, và tách các phần theo trách nhiệm riêng:
+
+- `config.py`: cấu hình topic, broker, timeout.
+- `payloads.py`: builder cho connection, state và order payload.
+- `mqtt_client.py`: lớp MQTT nhỏ để publish/subscribe và chờ message.
+- `runner.py`: CLI chạy testcase.
+
+## Chuẩn bị
+
+Đảm bảo Mosquitto và backend đang chạy, rồi cấu hình các biến môi trường nếu cần:
+
+- `MQTT_BROKER` mặc định là `127.0.0.1`
+- `MQTT_PORT` mặc định là `1884`
+- `AGV_MANUFACTURER` mặc định là `DATN`
+- `AGV_SERIAL` mặc định là `CDEF`
+
+Nếu bạn chạy trong Docker hoặc môi trường khác, chỉ cần override các giá trị này trước khi chạy harness.
+
+## Cách chạy
+
+Từ thư mục `agv-system/`:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+python -m tests.integration_harness.runner --case all --dry-run
 ```
 
-2. Configure your MQTT broker and serial connection. Defaults assume an MQTT broker on `localhost:1883` and no serial port (use `--serial-port COM3` to enable).
+Chế độ `--dry-run` chỉ kiểm tra việc sinh payload và wiring CLI, không cần broker thật.
 
-Run
----
-Publish the sample order and wait for `state` message and a 3-byte UART packet (HEADER 0xB1):
+Chạy thật với broker MQTT:
 
 ```bash
-python test_mqtt_uart.py --mqtt-host localhost --serial-port COM3 --order-file sample_order.json
+python -m tests.integration_harness.runner --case tc1
+python -m tests.integration_harness.runner --case tc2
 ```
 
-Options
--------
-- `--mqtt-host` MQTT broker host (default: localhost)
-- `--mqtt-port` MQTT broker port (default: 1884)
-- `--topic-order` Topic to publish orders to (default: order)
-- `--topic-state` Topic to listen for state (default: state)
-- `--serial-port` Serial port to capture UART (optional)
-- `--serial-baud` Baud rate for serial (default: 115200)
-- `--order-file` Path to JSON order file (default: sample_order.json)
+Nếu broker hoặc AGV serial khác mặc định:
 
-Notes
------
-- Adjust `--topic-order` and `--topic-state` if your firmware uses different topic names in `config.h`.
-- This harness only performs a simple smoke test. For automated CI, extend it to assert JSON contents and parse multiple messages.
+```bash
+python -m tests.integration_harness.runner --case all --broker 127.0.0.1 --port 1884 --serial CDEF
+```
+
+## Kết quả mong đợi
+
+- TC1 pass khi nhận được `connectionState=ONLINE` và ít nhất một bản tin `state`.
+- TC2 pass khi publish được một order hợp lệ, publish thêm một payload oversized, và nhận lại được một bản tin `state`.
+
+## Lưu ý
+
+- Bộ test này không giả lập full hành vi firmware. Nó chỉ kiểm tra tầng giao tiếp server-side và payload shape.
+- Nếu muốn kiểm tra LWT thực sự, cần để AGV thật/firmware thật kết nối với broker rồi ngắt nguồn thiết bị.
