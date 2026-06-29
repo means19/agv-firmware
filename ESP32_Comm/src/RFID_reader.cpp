@@ -50,24 +50,20 @@ String RfidManager::readHardware() {
     }
     currentUID.toUpperCase();
 
-    // 3. Debounce - Avoid multiple activations from holding the card
-
+    // 3. Smart Debounce - Chỉ block nếu đọc lại CHÍNH cái thẻ cũ trong vòng 2s
     if (currentUID == lastScannedUID && (millis() - lastScanTime < debounceDelay)) {
-        mfrc522.PICC_HaltA(); // Stop the card to prevent further reads
+        mfrc522.PICC_HaltA(); // Put card to sleep
         return "";
     }
 
-    // 4. If we reach here, it's a new scan. Update the last scanned UID and time.
+    // 4. Update the scan time and UID, put the card to sleep
     lastScannedUID = currentUID;
     lastScanTime = millis();
-
-    // 5. Halt the card and stop encryption to allow for the next scan
     mfrc522.PICC_HaltA();
-    mfrc522.PCD_StopCrypto1(); 
-
-    Serial.print("[RFID] Scanned Physical UID: ");
-    Serial.println(currentUID);
-
-    // 6. Map the physical UID to an application node ID and return it
-    return currentUID;
+    
+    // Serial.print("[RFID] Scanned Physical UID: ");
+    // Serial.println(currentUID); // Đã comment lại để giảm tải Log cho ESP32 khi xe chạy nhanh
+    
+    // 5. Return the mapped Node ID
+    return currentUID; // Hãy nhớ trả về UID RAW để order_manager.cpp tự lo việc Map nhé!
 }

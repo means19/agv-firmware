@@ -21,8 +21,8 @@
 #define TRIG_PORT   GPIOA
 #define TRIG_PIN    GPIO_PIN_5
 
-#define ECHO_PORT   GPIOA
-#define ECHO_PIN    GPIO_PIN_8
+#define ECHO_PORT   GPIOB
+#define ECHO_PIN    GPIO_PIN_11
 
 /* ---------- Timing and thresholds ---------- */
 #define HCSR04_TIMEOUT_MS       30U

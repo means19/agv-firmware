@@ -8,14 +8,6 @@
 #include "tag_map_config.h"
 #include "agv_identity.h"
 
-
-#define RX_PIN 16
-#define TX_PIN 17
-
-#define AGV_LOST_PIN 4
-#define AGV_OBJ_DETECT_PIN 13
-
-
 // ── Module instances ──────────────────────────────────────────────
 NetworkManager network;
 StateManager   stateMgr;
@@ -47,10 +39,14 @@ bool publishState(const String& json) {
 // ─────────────────────────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
-    Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);
+    
+    // [ĐÃ SỬA] Sử dụng cổng UART và các chân RX/TX động được gọi từ config.h
+    STM32_SERIAL.begin(115200, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+    
     delay(500);
     Serial.println("[MAIN] AGV gateway starting...");
 
+    // Cấu hình chân cảm biến (Lấy từ config.h)
     pinMode(AGV_LOST_PIN, INPUT_PULLDOWN);
     pinMode(AGV_OBJ_DETECT_PIN, INPUT_PULLDOWN);
 
@@ -156,7 +152,7 @@ void loop() {
         String tag = rfid.readHardware();
         
         if (tag != "") {
-            Serial.printf("[MAIN] Real RFID tag scanned/mapped: %s\n", tag.c_str());
+            Serial.printf("[MAIN] Hardware read RAW UID: %s\n", tag.c_str());
             orderMgr.onTagRead(tag);
             stateMgr.publishNow(publishState); // Push state to server
         }

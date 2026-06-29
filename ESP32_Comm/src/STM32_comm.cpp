@@ -12,7 +12,7 @@ void sendMoveCommand(MOVE_cmd cmd) {
     packet[1] = static_cast<uint8_t>(cmd);
     packet[2] = packet[0] ^ packet[1]; // simple XOR checksum
 
-    Serial2.write(packet, 3);  // or your UART port
+    STM32_SERIAL.write(packet, 3);
 }
 
 // hardcode other pins here for instance flags 

@@ -11,4 +11,8 @@ inline void initTagMappings(OrderManager& orderMgr) {
     orderMgr.addTagMapping("6D7D1205", "Assy_Drop_1");
     orderMgr.addTagMapping("63D34D10", "West_C");
     orderMgr.addTagMapping("C3C0B634", "West_N");
+    orderMgr.addTagMapping("33F83134", "Aisle_C");
+    orderMgr.addTagMapping("D49ABF73", "Aisle2_C");
+    orderMgr.addTagMapping("64DD1305", "Aisle2_S");
+    orderMgr.addTagMapping("4478CD73", "WH_Pick_2");
 }

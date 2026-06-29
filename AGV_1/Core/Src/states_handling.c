@@ -158,15 +158,15 @@ void AGV_Update(AGV_System *agv)
 {
     LineSensor_Update(&agv->line_sensor);
 
-    /* 1. ĐỌC LỆNH TỪ MẠNG (UART ESP32) */
+    /* 1. READ UART COMMANDS FROM ESP32 */
     AGV_Command cmd;
     if (ESP32_GetCommand(&agv->comm, &cmd)) {
         AGV_HandleCommand(agv, cmd);
     }
 
-    /* 2. SAFETY CORE: KIỂM TRA VẬT CẢN (GHI ĐÈ LỆNH) */
+    /* 2. SAFETY CORE: CHECK FOR OBSTACLES (OVERRIDE COMMANDS) */
     if (Object_detected()) {
-        /* Nếu có vật cản và xe chưa dừng, lập tức ép dừng */
+        /* If an obstacle is detected and the vehicle is not stopped, immediately stop */
         if (agv->state != AGV_STATE_STOP) {
             AGV_TransitionTo(agv, AGV_STATE_STOP);
             /* Bật LED báo lỗi Error_1 trên PB1 (Cấu hình tùy chọn) */
@@ -194,7 +194,7 @@ void AGV_Update(AGV_System *agv)
         }
     }
 
-    /* 3. THỰC THI TRẠNG THÁI (ĐÃ ĐƯỢC LỌC QUA SAFETY CORE) */
+    /* 3. EXECUTE STATE */
     switch (agv->state)
     {
         case AGV_STATE_FOLLOW_LINE:

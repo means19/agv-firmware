@@ -149,12 +149,10 @@ float HCSR04_GetLastDistanceCm(void)
 
 int Object_detected(void)
 {
-	/* TẠM THỜI COMMENT ĐOẠN ĐỌC KHOẢNG CÁCH LẠI
 	float distance = HCSR04_GetLastDistanceCm();
     if (distance > 0.0f && distance < ERROR_ALLOWED_RANGE)
     {
         return 1;
     }
-    */
     return 0;
 }
